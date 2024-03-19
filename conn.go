@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -17,6 +18,7 @@ type conn struct {
 	OutputLocation string
 
 	pollFrequency time.Duration
+	workGroup     *string
 }
 
 func (c *conn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
@@ -24,7 +26,7 @@ func (c *conn) QueryContext(ctx context.Context, query string, args []driver.Nam
 		panic("Athena doesn't support prepared statements. Format your own arguments.")
 	}
 
-	rows, err := c.runQuery(ctx, query)
+	rows, err := c.runQuery(ctx, query, args)
 	return rows, err
 }
 
@@ -33,12 +35,12 @@ func (c *conn) ExecContext(ctx context.Context, query string, args []driver.Name
 		panic("Athena doesn't support prepared statements. Format your own arguments.")
 	}
 
-	_, err := c.runQuery(ctx, query)
+	_, err := c.runQuery(ctx, query, args)
 	return nil, err
 }
 
-func (c *conn) runQuery(ctx context.Context, query string) (driver.Rows, error) {
-	queryID, err := c.startQuery(query)
+func (c *conn) runQuery(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	queryID, err := c.startQuery(query, args)
 	if err != nil {
 		return nil, err
 	}
@@ -56,8 +58,8 @@ func (c *conn) runQuery(ctx context.Context, query string) (driver.Rows, error) 
 }
 
 // startQuery starts an Athena query and returns its ID.
-func (c *conn) startQuery(query string) (string, error) {
-	resp, err := c.athena.StartQueryExecution(&athena.StartQueryExecutionInput{
+func (c *conn) startQuery(query string, args []driver.NamedValue) (string, error) {
+	input := &athena.StartQueryExecutionInput{
 		QueryString: aws.String(query),
 		QueryExecutionContext: &athena.QueryExecutionContext{
 			Database: aws.String(c.db),
@@ -65,7 +67,18 @@ func (c *conn) startQuery(query string) (string, error) {
 		ResultConfiguration: &athena.ResultConfiguration{
 			OutputLocation: aws.String(c.OutputLocation),
 		},
-	})
+		WorkGroup: c.workGroup,
+	}
+	executeParams := make([]*string, 0, len(args))
+	for _, arg := range args {
+		valStr, err := convertAnyToString(arg.Value)
+		if err != nil {
+			return "", fmt.Errorf("convert %s any type to string type failed, real type: %T", arg.Name, arg.Value)
+		}
+		executeParams = append(executeParams, &valStr)
+	}
+	input.ExecutionParameters = executeParams
+	resp, err := c.athena.StartQueryExecution(input)
 	if err != nil {
 		return "", err
 	}
