@@ -1,4 +1,4 @@
-module github.com/vx416/go-athena
+module github.com/vx416/go-athenav
 
 go 1.21.5
 
