@@ -19,6 +19,7 @@ type conn struct {
 
 	pollFrequency time.Duration
 	workGroup     *string
+	dataCataLog   *string
 }
 
 func (c *conn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
@@ -63,6 +64,7 @@ func (c *conn) startQuery(query string, args []driver.NamedValue) (string, error
 		QueryString: aws.String(query),
 		QueryExecutionContext: &athena.QueryExecutionContext{
 			Database: aws.String(c.db),
+			Catalog:  c.dataCataLog,
 		},
 		ResultConfiguration: &athena.ResultConfiguration{
 			OutputLocation: aws.String(c.OutputLocation),

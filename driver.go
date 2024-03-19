@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/athena"
 )
@@ -40,8 +41,9 @@ func init() {
 
 // Open should be used via `db/sql.Open("athena", "<params>")`.
 // The following parameters are supported in URI query format (k=v&k2=v2&...)
+// example: "db=default&data_catalog=default&aws_access_key_id=default&aws_access_key_secrete=default&region=default&output_location=s3://results"
 //
-// - `db` (required)
+// - `db` (required) refer to https://docs.aws.amazon.com/athena/latest/ug/understanding-tables-databases-and-the-data-catalog.html
 // This is the Athena database name. In the UI, this defaults to "default",
 // but the driver requires it regardless.
 //
@@ -55,9 +57,22 @@ func init() {
 // which the driver will poll for results. It should be a time/Duration.String().
 // A completely arbitrary default of "5s" was chosen.
 //
-// - `region` (optional)
+// - `work_group` (optional)
+// Athena's API allows you to specify a workgroup for queries. This is the name of
+// the workgroup you want to use. If not specified, the default workgroup is used.
+//
+// - `data_catalog` (required) refer to https://docs.aws.amazon.com/athena/latest/ug/understanding-tables-databases-and-the-data-catalog.html
+// Athena's API allows you to specify a data catalog for queries. This is the name of
+// the data catalog you want to use. If not specified, the default data catalog is used.
+//
+// - `region` (required)
 // Override AWS region. Useful if it is not set with environment variable.
 //
+// - `aws_access_key_id` (required)
+// AWS access key id. Useful if it is not set with environment variable.
+//
+// - `aws_access_key_secret` (required)
+// AWS access key secret. Useful if it is not set with environment variable.
 // Credentials must be accessible via the SDK's Default Credential Provider Chain.
 // For more advanced AWS credentials/session/config management, please supply
 // a custom AWS session directly via `athena.Open()`.
@@ -81,6 +96,7 @@ func (d *Driver) Open(connStr string) (driver.Conn, error) {
 		OutputLocation: cfg.OutputLocation,
 		pollFrequency:  cfg.PollFrequency,
 		workGroup:      cfg.WorkerGroup,
+		dataCataLog:    cfg.DataCateLog,
 	}, nil
 }
 
@@ -119,6 +135,7 @@ type Config struct {
 
 	PollFrequency time.Duration
 	WorkerGroup   *string
+	DataCateLog   *string
 }
 
 func configFromConnectionString(connStr string) (*Config, error) {
@@ -130,9 +147,17 @@ func configFromConnectionString(connStr string) (*Config, error) {
 	var cfg Config
 
 	var acfg []*aws.Config
-	if region := args.Get("region"); region != "" {
-		acfg = append(acfg, &aws.Config{Region: aws.String(region)})
+	region := args.Get("region")
+	awsAccessKey := args.Get("aws_access_key_id")
+	awsAccessKeySecret := args.Get("aws_access_key_secret")
+	if region == "" || awsAccessKey == "" || awsAccessKeySecret == "" {
+		return nil, fmt.Errorf("region, aws_access_key_id and aws_access_key_secret are required")
 	}
+
+	acfg = append(acfg, &aws.Config{
+		Region:      aws.String(region),
+		Credentials: credentials.NewStaticCredentials(awsAccessKey, awsAccessKeySecret, ""),
+	})
 	cfg.Session, err = session.NewSession(acfg...)
 	if err != nil {
 		return nil, err
@@ -148,6 +173,13 @@ func configFromConnectionString(connStr string) (*Config, error) {
 			return nil, fmt.Errorf("invalid poll_frequency parameter: %s", frequencyStr)
 		}
 	}
-
+	workerGroupStr := args.Get("work_group")
+	if workerGroupStr != "" {
+		cfg.WorkerGroup = aws.String(workerGroupStr)
+	}
+	dataCateLogStr := args.Get("data_catalog")
+	if dataCateLogStr != "" {
+		cfg.DataCateLog = aws.String(dataCateLogStr)
+	}
 	return &cfg, nil
 }
