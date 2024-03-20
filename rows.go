@@ -114,7 +114,7 @@ func (r *rows) fetchNextPage(token *string) (bool, error) {
 		r.out.ResultSet.Rows = r.out.ResultSet.Rows[1:]
 	}
 	//  If there are no rows in the result set, return false
-	if len(r.out.ResultSet.Rows) == 0 {
+	if r.out == nil || r.out.ResultSet == nil || len(r.out.ResultSet.Rows) == 0 {
 		return false, nil
 	}
 	return true, nil
