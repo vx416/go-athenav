@@ -9,6 +9,10 @@ import (
 	"github.com/aws/aws-sdk-go/service/athena/athenaiface"
 )
 
+const (
+	maxResultCnt = 1000
+)
+
 type rows struct {
 	athena  athenaiface.AthenaAPI
 	queryID string
@@ -78,42 +82,54 @@ func (r *rows) Next(dest []driver.Value) error {
 			return io.EOF
 		}
 	}
-
-	// Shift to next row
-	cur := r.out.ResultSet.Rows[0]
+	currentRow := r.popRowInResultSet()
+	if currentRow == nil {
+		return io.EOF
+	}
 	columns := r.out.ResultSet.ResultSetMetadata.ColumnInfo
-	if err := convertRow(columns, cur.Data, dest); err != nil {
+	if err := convertRow(columns, currentRow.Data, dest); err != nil {
 		return err
 	}
-
-	r.out.ResultSet.Rows = r.out.ResultSet.Rows[1:]
 	return nil
 }
 
 func (r *rows) fetchNextPage(token *string) (bool, error) {
+	// if there are rows left in the current page, return true, else fetch next page
+	if len(r.out.ResultSet.Rows) > 0 {
+		return true, nil
+	}
 	var err error
 	r.out, err = r.athena.GetQueryResults(&athena.GetQueryResultsInput{
 		QueryExecutionId: aws.String(r.queryID),
 		NextToken:        token,
+		MaxResults:       aws.Int64(maxResultCnt),
 	})
 	if err != nil {
 		return false, err
 	}
 
-	var rowOffset = 0
 	// First row of the first page contains header if the query is not DDL.
 	// These are also available in *athena.Row.ResultSetMetadata.
 	if r.skipHeaderRow {
-		rowOffset = 1
-		r.skipHeaderRow = false
+		r.out.ResultSet.Rows = r.out.ResultSet.Rows[1:]
 	}
-
-	if len(r.out.ResultSet.Rows) < rowOffset+1 {
+	//  If there are no rows in the result set, return false
+	if len(r.out.ResultSet.Rows) == 0 {
 		return false, nil
 	}
-
-	r.out.ResultSet.Rows = r.out.ResultSet.Rows[rowOffset:]
 	return true, nil
+}
+
+func (r *rows) popRowInResultSet() *athena.Row {
+	if r.out == nil {
+		return nil
+	}
+	if len(r.out.ResultSet.Rows) == 0 {
+		return nil
+	}
+	row := r.out.ResultSet.Rows[0]
+	r.out.ResultSet.Rows = r.out.ResultSet.Rows[1:]
+	return row
 }
 
 func (r *rows) Close() error {
