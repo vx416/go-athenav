@@ -17,9 +17,11 @@ type conn struct {
 	db             string
 	OutputLocation string
 
-	pollFrequency time.Duration
-	workGroup     *string
-	dataCataLog   *string
+	pollRetryIncrement time.Duration
+	maxRetryDuration   time.Duration
+	pollFrequency      time.Duration
+	workGroup          *string
+	dataCataLog        *string
 }
 
 func (c *conn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
@@ -90,6 +92,7 @@ func (c *conn) startQuery(query string, args []driver.NamedValue) (string, error
 
 // waitOnQuery blocks until a query finishes, returning an error if it failed.
 func (c *conn) waitOnQuery(ctx context.Context, queryID string) error {
+	pollFreq := c.pollFrequency
 	for {
 		statusResp, err := c.athena.GetQueryExecutionWithContext(ctx, &athena.GetQueryExecutionInput{
 			QueryExecutionId: aws.String(queryID),
@@ -117,7 +120,11 @@ func (c *conn) waitOnQuery(ctx context.Context, queryID string) error {
 			})
 
 			return ctx.Err()
-		case <-time.After(c.pollFrequency):
+		case <-time.After(pollFreq):
+			pollFreq += c.pollRetryIncrement
+			if pollFreq > c.maxRetryDuration {
+				pollFreq = c.maxRetryDuration
+			}
 			continue
 		}
 	}

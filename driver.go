@@ -13,12 +13,24 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/athena"
+	"github.com/aws/aws-sdk-go/service/athena/athenaiface"
 )
 
 var (
-	openFromSessionMutex sync.Mutex
-	openFromSessionCount int
+	openFromSessionMutex          sync.Mutex
+	openFromSessionCount          int
+	defaultPollFrequency          = 1 * time.Second
+	defaultMaxRetryDuration       = 3 * time.Second
+	defaultRetryDurationIncrement = 300 * time.Millisecond
+	mockEnabled                   = false
+	mockAthenaClientImpl          athenaiface.AthenaAPI
 )
+
+// EnableMockMode allows you to use a mock implementation of the Athena API.
+func EnableMockMode(mockAthenaClient athenaiface.AthenaAPI) {
+	mockEnabled = true
+	mockAthenaClientImpl = mockAthenaClient
+}
 
 // Driver is a sql.Driver. It's intended for db/sql.Open().
 type Driver struct {
@@ -77,6 +89,12 @@ func init() {
 // For more advanced AWS credentials/session/config management, please supply
 // a custom AWS session directly via `athena.Open()`.
 func (d *Driver) Open(connStr string) (driver.Conn, error) {
+	if mockEnabled {
+		return &conn{
+			athena: mockAthenaClientImpl,
+		}, nil
+	}
+
 	cfg := d.cfg
 	if cfg == nil {
 		var err error
@@ -87,16 +105,24 @@ func (d *Driver) Open(connStr string) (driver.Conn, error) {
 	}
 
 	if cfg.PollFrequency == 0 {
-		cfg.PollFrequency = 5 * time.Second
+		cfg.PollFrequency = defaultPollFrequency
+	}
+	if cfg.PollRetryIncrement == 0 {
+		cfg.PollRetryIncrement = defaultRetryDurationIncrement
+	}
+	if cfg.MaxRetryDuration == 0 {
+		cfg.MaxRetryDuration = defaultMaxRetryDuration
 	}
 
 	return &conn{
-		athena:         athena.New(cfg.Session),
-		db:             cfg.Database,
-		OutputLocation: cfg.OutputLocation,
-		pollFrequency:  cfg.PollFrequency,
-		workGroup:      cfg.WorkerGroup,
-		dataCataLog:    cfg.DataCateLog,
+		athena:             athena.New(cfg.Session),
+		db:                 cfg.Database,
+		OutputLocation:     cfg.OutputLocation,
+		pollFrequency:      cfg.PollFrequency,
+		pollRetryIncrement: cfg.PollRetryIncrement,
+		maxRetryDuration:   cfg.MaxRetryDuration,
+		workGroup:          cfg.WorkerGroup,
+		dataCataLog:        cfg.DataCateLog,
 	}, nil
 }
 
@@ -133,9 +159,11 @@ type Config struct {
 	Database       string
 	OutputLocation string
 
-	PollFrequency time.Duration
-	WorkerGroup   *string
-	DataCateLog   *string
+	PollFrequency      time.Duration
+	PollRetryIncrement time.Duration
+	MaxRetryDuration   time.Duration
+	WorkerGroup        *string
+	DataCateLog        *string
 }
 
 func configFromConnectionString(connStr string) (*Config, error) {
