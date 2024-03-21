@@ -176,10 +176,10 @@ func configFromConnectionString(connStr string) (*Config, error) {
 
 	var acfg []*aws.Config
 	region := args.Get("region")
-	awsAccessKey := args.Get("aws_access_key_id")
+	awsAccessKey := args.Get("aws_access_key")
 	awsAccessKeySecret := args.Get("aws_access_key_secret")
 	if region == "" || awsAccessKey == "" || awsAccessKeySecret == "" {
-		return nil, fmt.Errorf("region, aws_access_key_id and aws_access_key_secret are required")
+		return nil, fmt.Errorf("region, aws_access_key and aws_access_key_secret are required")
 	}
 
 	acfg = append(acfg, &aws.Config{
@@ -209,5 +209,7 @@ func configFromConnectionString(connStr string) (*Config, error) {
 	if dataCateLogStr != "" {
 		cfg.DataCateLog = aws.String(dataCateLogStr)
 	}
+	fmt.Printf("region: %s, aws_access_key: %s, aws_access_key_secret: %s work_group:%+v data_log:%+v\n",
+		region, awsAccessKey, awsAccessKeySecret, cfg.WorkerGroup, cfg.DataCateLog)
 	return &cfg, nil
 }

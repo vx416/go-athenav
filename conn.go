@@ -25,18 +25,18 @@ type conn struct {
 }
 
 func (c *conn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
-	if len(args) > 0 {
-		panic("Athena doesn't support prepared statements. Format your own arguments.")
-	}
+	// if len(args) > 0 {
+	// 	panic("Athena doesn't support prepared statements. Format your own arguments.")
+	// }
 
 	rows, err := c.runQuery(ctx, query, args)
 	return rows, err
 }
 
 func (c *conn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
-	if len(args) > 0 {
-		panic("Athena doesn't support prepared statements. Format your own arguments.")
-	}
+	// if len(args) > 0 {
+	// 	panic("Athena doesn't support prepared statements. Format your own arguments.")
+	// }
 
 	_, err := c.runQuery(ctx, query, args)
 	return nil, err
@@ -81,7 +81,9 @@ func (c *conn) startQuery(query string, args []driver.NamedValue) (string, error
 		}
 		executeParams = append(executeParams, &valStr)
 	}
-	input.ExecutionParameters = executeParams
+	if len(executeParams) > 0 {
+		input.ExecutionParameters = executeParams
+	}
 	resp, err := c.athena.StartQueryExecution(input)
 	if err != nil {
 		return "", err

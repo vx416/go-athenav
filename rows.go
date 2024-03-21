@@ -95,7 +95,7 @@ func (r *rows) Next(dest []driver.Value) error {
 
 func (r *rows) fetchNextPage(token *string) (bool, error) {
 	// if there are rows left in the current page, return true, else fetch next page
-	if len(r.out.ResultSet.Rows) > 0 {
+	if r.out != nil && r.out.ResultSet != nil && len(r.out.ResultSet.Rows) > 0 {
 		return true, nil
 	}
 	var err error
