@@ -121,7 +121,7 @@ func (d *Driver) Open(connStr string) (driver.Conn, error) {
 		pollFrequency:      cfg.PollFrequency,
 		pollRetryIncrement: cfg.PollRetryIncrement,
 		maxRetryDuration:   cfg.MaxRetryDuration,
-		workGroup:          cfg.WorkerGroup,
+		workGroup:          cfg.WorkGroup,
 		dataCataLog:        cfg.DataCateLog,
 	}, nil
 }
@@ -162,7 +162,7 @@ type Config struct {
 	PollFrequency      time.Duration
 	PollRetryIncrement time.Duration
 	MaxRetryDuration   time.Duration
-	WorkerGroup        *string
+	WorkGroup          *string
 	DataCateLog        *string
 }
 
@@ -201,15 +201,13 @@ func configFromConnectionString(connStr string) (*Config, error) {
 			return nil, fmt.Errorf("invalid poll_frequency parameter: %s", frequencyStr)
 		}
 	}
-	workerGroupStr := args.Get("work_group")
-	if workerGroupStr != "" {
-		cfg.WorkerGroup = aws.String(workerGroupStr)
+	workGroupStr := args.Get("work_group")
+	if workGroupStr != "" {
+		cfg.WorkGroup = aws.String(workGroupStr)
 	}
 	dataCateLogStr := args.Get("data_catalog")
 	if dataCateLogStr != "" {
 		cfg.DataCateLog = aws.String(dataCateLogStr)
 	}
-	fmt.Printf("region: %s, aws_access_key: %s, aws_access_key_secret: %s work_group:%+v data_log:%+v\n",
-		region, awsAccessKey, awsAccessKeySecret, cfg.WorkerGroup, cfg.DataCateLog)
 	return &cfg, nil
 }
