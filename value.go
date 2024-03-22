@@ -17,6 +17,9 @@ const (
 )
 
 func convertRow(columns []*athena.ColumnInfo, in []*athena.Datum, ret []driver.Value) error {
+	fmt.Printf("columns: %v\n", columns)
+	fmt.Printf("ins: %v\n", in)
+
 	for i, val := range in {
 		coerced, err := convertValue(*columns[i].Type, val.VarCharValue)
 		if err != nil {

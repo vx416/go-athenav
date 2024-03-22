@@ -19,7 +19,7 @@ type Mocker interface {
 }
 
 // MockQuery mocks the AthenaAPI to return the given columns and data rows.
-func MockQuery(mocker Mocker, mockColumnsType []string, mockDataRows []*athena.Row) {
+func MockQuery(mocker Mocker, mockColumnsName []string, mockColumnsType []string, mockDataRows [][]string) {
 	queryID := fmt.Sprintf("query-%d", time.Now().UnixNano())
 	state := athena.QueryExecutionStateSucceeded
 	mocker.On("StartQueryExecution", mock.Anything, mock.Anything).Return(&athena.StartQueryExecutionOutput{QueryExecutionId: &queryID}, nil)
@@ -30,14 +30,27 @@ func MockQuery(mocker Mocker, mockColumnsType []string, mockDataRows []*athena.R
 	for i, colType := range mockColumnsType {
 		columnInfos[i] = &athena.ColumnInfo{
 			Type: &colType,
+			Name: &mockColumnsName[i],
 		}
+	}
+	athenaRows := make([]*athena.Row, 0, len(mockDataRows))
+	for _, rowData := range mockDataRows {
+		datum := make([]*athena.Datum, len(rowData))
+		for i, val := range rowData {
+			datum[i] = &athena.Datum{
+				VarCharValue: &val,
+			}
+		}
+		athenaRows = append(athenaRows, &athena.Row{
+			Data: datum,
+		})
 	}
 	mocker.On("GetQueryResults", mock.Anything, mock.Anything).Return(&athena.GetQueryResultsOutput{
 		ResultSet: &athena.ResultSet{
 			ResultSetMetadata: &athena.ResultSetMetadata{
 				ColumnInfo: columnInfos,
 			},
-			Rows: mockDataRows,
+			Rows: athenaRows,
 		},
 	}, nil)
 }
