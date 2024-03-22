@@ -65,7 +65,9 @@ func (r *rows) Next(dest []driver.Value) error {
 	if r.done {
 		return io.EOF
 	}
-
+	if r.out == nil || r.out.ResultSet == nil {
+		return io.EOF
+	}
 	// If nothing left to iterate...
 	if len(r.out.ResultSet.Rows) == 0 {
 		// And if nothing more to paginate...
@@ -108,14 +110,14 @@ func (r *rows) fetchNextPage(token *string) (bool, error) {
 		return false, err
 	}
 
+	//  If there are no rows in the result set, return false
+	if r.out == nil || r.out.ResultSet == nil || len(r.out.ResultSet.Rows) == 0 {
+		return false, nil
+	}
 	// First row of the first page contains header if the query is not DDL.
 	// These are also available in *athena.Row.ResultSetMetadata.
 	if r.skipHeaderRow {
 		r.out.ResultSet.Rows = r.out.ResultSet.Rows[1:]
-	}
-	//  If there are no rows in the result set, return false
-	if r.out == nil || r.out.ResultSet == nil || len(r.out.ResultSet.Rows) == 0 {
-		return false, nil
 	}
 	return true, nil
 }
