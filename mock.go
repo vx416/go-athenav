@@ -19,26 +19,31 @@ type Mocker interface {
 }
 
 // MockQuery mocks the AthenaAPI to return the given columns and data rows.
-func MockQuery(mocker Mocker, mockColumnsName []string, mockColumnsType []string, mockDataRows [][]string) {
+// e.g MockQuery(&mockAPI, map[string]string{"id": "string"}, [][]string{{"1"}})
+func MockQuery(mocker Mocker, columnNameTypeMap map[string]string, mockDataRows [][]string) {
 	queryID := fmt.Sprintf("query-%d", time.Now().UnixNano())
 	state := athena.QueryExecutionStateSucceeded
 	mocker.On("StartQueryExecution", mock.Anything, mock.Anything).Return(&athena.StartQueryExecutionOutput{QueryExecutionId: &queryID}, nil)
 	mocker.On("GetQueryExecutionWithContext", mock.Anything, mock.Anything).Return(&athena.GetQueryExecutionOutput{QueryExecution: &athena.QueryExecution{Status: &athena.QueryExecutionStatus{
 		State: &state,
 	}}}, nil)
-	columnInfos := make([]*athena.ColumnInfo, len(mockColumnsType))
-	for i, colType := range mockColumnsType {
-		columnInfos[i] = &athena.ColumnInfo{
-			Type: &colType,
-			Name: &mockColumnsName[i],
-		}
+	columnInfos := make([]*athena.ColumnInfo, 0, len(columnNameTypeMap))
+	for colName, colType := range columnNameTypeMap {
+		colNameTemp := colName
+		colTypeTemp := colType
+		columnInfos = append(columnInfos, &athena.ColumnInfo{
+			Type: &colTypeTemp,
+			Name: &colNameTemp,
+		})
 	}
-	athenaRows := make([]*athena.Row, 0, len(mockDataRows))
+
+	athenaRows := make([]*athena.Row, 1, len(mockDataRows))
 	for _, rowData := range mockDataRows {
 		datum := make([]*athena.Datum, len(rowData))
 		for i, val := range rowData {
+			valTemp := val
 			datum[i] = &athena.Datum{
-				VarCharValue: &val,
+				VarCharValue: &valTemp,
 			}
 		}
 		athenaRows = append(athenaRows, &athena.Row{
