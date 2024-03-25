@@ -4,6 +4,7 @@ go 1.21.5
 
 require (
 	github.com/aws/aws-sdk-go v1.51.2
+	github.com/jmoiron/sqlx v1.3.5
 	github.com/satori/go.uuid v1.2.0
 	github.com/spf13/cast v1.6.0
 	github.com/stretchr/testify v1.9.0

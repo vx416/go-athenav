@@ -20,16 +20,16 @@ type Mocker interface {
 
 // MockQuery mocks the AthenaAPI to return the given columns and data rows.
 // e.g MockQuery(&mockAPI, map[string]string{"id": "string"}, [][]string{{"1"}})
-func MockQuery(mocker Mocker, columnNameTypeMap map[string]string, mockDataRows [][]string) {
+func MockQuery(mocker Mocker, columnNames []string, columnTypes []string, mockDataRows [][]string) {
 	queryID := fmt.Sprintf("query-%d", time.Now().UnixNano())
 	state := athena.QueryExecutionStateSucceeded
 	mocker.On("StartQueryExecution", mock.Anything, mock.Anything).Return(&athena.StartQueryExecutionOutput{QueryExecutionId: &queryID}, nil)
 	mocker.On("GetQueryExecutionWithContext", mock.Anything, mock.Anything).Return(&athena.GetQueryExecutionOutput{QueryExecution: &athena.QueryExecution{Status: &athena.QueryExecutionStatus{
 		State: &state,
 	}}}, nil)
-	columnInfos := make([]*athena.ColumnInfo, 0, len(columnNameTypeMap))
-	for colName, colType := range columnNameTypeMap {
-		colNameTemp := colName
+	columnInfos := make([]*athena.ColumnInfo, 0, len(columnNames))
+	for i, colType := range columnTypes {
+		colNameTemp := columnNames[i]
 		colTypeTemp := colType
 		columnInfos = append(columnInfos, &athena.ColumnInfo{
 			Type: &colTypeTemp,
